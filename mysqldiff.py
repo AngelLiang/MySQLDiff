@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import MySQLdb
+import pymysql
 import pprint
 import re
 
@@ -20,10 +20,10 @@ import re
 def get_con(host, db, user, passwd):
     con = None
     try:
-        con = MySQLdb.connect(host, user, passwd, db)
-
-    except MySQLdb.Error, e:
-        print "MySQL Connect Error: %s" % (e.args[1])
+        con = pymysql.connect(host=host, user=user, password=passwd, database=db)
+    except pymysql.Error as e:
+        print("MySQL Connect Error: %s" % (e.args[1]))
+        raise
     return con
 
 
@@ -36,14 +36,13 @@ def get_tables(con):
 
 
 def get_table_desc(con, table_name):
-
-    cur = con.cursor(MySQLdb.cursors.DictCursor)
+    cur = con.cursor(pymysql.cursors.DictCursor)
     cur.execute("desc %s" % (table_name))
     desc = cur.fetchall()
     for d in desc:
         pprint.pprint(Column(d))
     cur.close()
-    print desc
+    print(desc)
 
 
 class Database:
@@ -61,9 +60,9 @@ class Database:
         return tables
 
     def printf(self):
-        print "Database : %s\n" % (self.db)
+        print("Database : %s\n" % (self.db))
         for t in self.tables:
-            print t
+            print(t)
 
     def __repr__(self):
         db_desc = "Database : %s\n" % (self.db)
@@ -77,7 +76,7 @@ class Database:
         try:
             cur.execute("SHOW TABLES")
             tables = [t[0] for t in cur.fetchall()]
-            print "Loading tables on %s/%s..." % (self.host, self.db)
+            print("Loading tables on %s/%s..." % (self.host, self.db))
             for t in tables:
                 cols = self.fetch_table_columns(t)
                 indexes = self.fetch_table_indexes(t)
@@ -88,7 +87,8 @@ class Database:
 
     def fetch_table_columns(self, table_name):
         columns = {}
-        cur = self.con.cursor(MySQLdb.cursors.DictCursor)
+        # cur = self.con.cursor(MySQLdb.cursors.DictCursor)
+        cur = self.con.cursor(pymysql.cursors.DictCursor)
         try:
             cur.execute("desc %s" % (table_name))
             for c in cur.fetchall():
@@ -99,7 +99,7 @@ class Database:
 
     def fetch_table_indexes(self, table_name):
         indexes = {}
-        cur = self.con.cursor(MySQLdb.cursors.DictCursor)
+        cur = self.con.cursor(pymysql.cursors.DictCursor)
         try:
             cur.execute("show index in %s" % (table_name))
             for index in cur.fetchall():
@@ -125,7 +125,8 @@ class Database:
         return create_sql
 
     def __del__(self):
-        self.con.close()
+        if getattr(self, 'con', None):
+            self.con.close()
 
 
 class Table:
@@ -233,8 +234,8 @@ class MySQLDiff:
         self.db2_tables = self.db2.get_tables()
 
     def diff(self):
-        print "## Diff between %s/%s and %s/%s\n" % (
-            self.db1.host, self.db1.db, self.db2.host, self.db2.db)
+        print("## Diff between %s/%s and %s/%s\n" % (
+            self.db1.host, self.db1.db, self.db2.host, self.db2.db))
         self.compare_tables(self.db1, self.db2)
         self.compare_tables(self.db2, self.db1)
         self.compare_tables_colunms()
@@ -242,13 +243,13 @@ class MySQLDiff:
     def compare_tables(self, db1, db2):
         miss_tables = db1.get_tables() - db2.get_tables()
         if len(miss_tables):
-            print "\tIn %s:<%s> doesn't exist table(s):" % (db2.host, db2.db)
-            print "\t\t", "\n\t\t".join(miss_tables), "\n"
+            print("\tIn %s:<%s> doesn't exist table(s):" % (db2.host, db2.db))
+            print("\t\t", "\n\t\t".join(miss_tables), "\n")
 
     def compare_tables_colunms(self):
         inter_tables = self.db1_tables & self.db2_tables
         for t in inter_tables:
-            print "In table %s\n-----------------------\n" % (t)
+            print("In table %s\n-----------------------\n" % (t))
             t1 = self.db1.tables[t]
             t2 = self.db2.tables[t]
             self.compare_columns(self.db2, t1, t2)
@@ -263,10 +264,10 @@ class MySQLDiff:
     def compare_columns(self, db, t1, t2):
         miss_cols = t1.columns_set - t2.columns_set
         if miss_cols:
-            print "\tOn %s doesn't exist colunm(s):" % (db.host)
+            print("\tOn %s doesn't exist colunm(s):" % (db.host))
             for col in miss_cols:
-                print "\t", col.rjust(20), ": ", t1.col_desc(col)
-            print ""
+                print("\t", col.rjust(20), ": ", t1.col_desc(col))
+            print()
 
     def diff_columns(self, t1, t2):
         inter_cols = t1.columns_set & t2.columns_set
@@ -276,12 +277,12 @@ class MySQLDiff:
 
             diff_keys = self.col_diff_keys(t1_col, t2_col)
             if len(diff_keys):
-                print "\tColunm *%s* is different:" % (t1_col['Field'])
-                print "\t", self.db1.host.rjust(20), ": ", t1.col_desc(col)
-                print "\t", self.db2.host.rjust(20), ": ", t2.col_desc(col)
+                print("\tColunm *%s* is different:" % (t1_col['Field']))
+                print("\t", self.db1.host.rjust(20), ": ", t1.col_desc(col))
+                print("\t", self.db2.host.rjust(20), ": ", t2.col_desc(col))
                 for key in diff_keys:
-                    print "\t", ("different %s" % (key)).rjust(20), ": *%s* *%s*" % \
-                        (t1_col[key], t2_col[key])
+                    print("\t", ("different %s" % (key)).rjust(20), ": *%s* *%s*" % \
+                        (t1_col[key], t2_col[key]))
                 print("")
 
 #             for key in ['Type', 'Null', 'Key', 'Default', 'Extra']:
@@ -306,11 +307,11 @@ class MySQLDiff:
     def compare_indexes(self, db, t1, t2):
         miss_indexes = t1.indexes_set - t2.indexes_set
         if miss_indexes:
-            print "\tOn %s doesn't exist index(es):" % (db.host)
+            print("\tOn %s doesn't exist index(es):" % (db.host))
             for index in miss_indexes:
                 line = self.find_line(t1.index_lines, index)
-                print "\t", index.rjust(20), ": ", line
-            print ""
+                print("\t", index.rjust(20), ": ", line)
+            print()
 
     def diff_indexes(self, t1, t2):
         inter_indexes = t1.indexes_set & t2.indexes_set
@@ -329,10 +330,10 @@ class MySQLDiff:
             for name in index_names:
                 line = self.find_line(lines1, name)
                 if line:
-                    print "\t", self.db1.host.rjust(20), ": ", line
+                    print("\t", self.db1.host.rjust(20), ": ", line)
                 line = self.find_line(lines2, name)
                 if line:
-                    print "\t", self.db2.host.rjust(20), ": ", line
+                    print("\t", self.db2.host.rjust(20), ": ", line)
 
     def find_line(self, lines, name):
         for line in lines:
@@ -344,8 +345,8 @@ class MySQLDiff:
         key_names = []
         for key in ['Columns', 'Null']:
             if i1[key] != i2[key]:
-                print "\tIndex *%s* is different %s: *%s* *%s*" % \
-                    (i1['Key_name'], key, i1[key], i2[key])
+                print("\tIndex *%s* is different %s: *%s* *%s*" % \
+                    (i1['Key_name'], key, i1[key], i2[key]))
                 key_names.append(key)
         return key_names
 
@@ -365,7 +366,7 @@ def parse_mysql_url(mysql_url):
 
     if len(user_info) != 2:
         import getpass
-        print "Input password for %s@%s" % (user_info[0], host)
+        print("Input password for %s@%s" % (user_info[0], host))
         user_info.append(getpass.getpass())
     user, passwd = user_info
     return host, db, user, passwd

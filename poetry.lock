@@ -1,0 +1,19 @@
+[[package]]
+name = "pymysql"
+version = "1.0.2"
+description = "Pure Python MySQL Driver"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[package.extras]
+rsa = ["cryptography"]
+ed25519 = ["PyNaCl (>=1.4.0)"]
+
+[metadata]
+lock-version = "1.1"
+python-versions = "^3.6"
+content-hash = "754b1a985656f5c13894230e3bd712a0900ae8af5dae17ca414489f9ba10536a"
+
+[metadata.files]
+pymysql = []
